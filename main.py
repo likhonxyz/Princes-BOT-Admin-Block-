@@ -12,7 +12,7 @@ from telegram.ext import (
 from telegram import Update
 
 # ================= CONFIG =================
-TOKEN = "7945756761:AAH9rgtEx3eOfZWGto-JD1A5DjM1MHOlflA"
+TOKEN = "7945756761:AAHIRDLLWYaSexuFZTqvJTJEzqPwk9D8_W0"
 
 # Zeabur volume mount path (FINAL)
 DATA_DIR = "/app/data"
