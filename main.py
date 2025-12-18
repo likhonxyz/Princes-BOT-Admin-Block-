@@ -1,6 +1,7 @@
 import re
 import logging
 import sqlite3
+import os
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -13,8 +14,12 @@ from telegram import Update
 # ================= CONFIG =================
 TOKEN = "7945756761:AAH9rgtEx3eOfZWGto-JD1A5DjM1MHOlflA"
 
-# Zeabur volume mount path
-DB_NAME = "/data/no_exempt.db"
+# Zeabur volume mount path (FINAL)
+DATA_DIR = "/app/data"
+DB_NAME = f"{DATA_DIR}/no_exempt.db"
+
+# ================= ENSURE DATA DIR =================
+os.makedirs(DATA_DIR, exist_ok=True)
 
 # ================= LOGGING =================
 logging.basicConfig(level=logging.INFO)
@@ -172,5 +177,5 @@ app.add_handler(CommandHandler("removenoexempt", remove_no_exempt))
 app.add_handler(CommandHandler("list", list_no_exempt))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, delete_links))
 
-logger.info("Bot started (Zeabur + Volume)")
+logger.info("Bot started successfully (Zeabur Volume FIXED)")
 app.run_polling()
