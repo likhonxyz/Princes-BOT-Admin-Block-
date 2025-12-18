@@ -1,7 +1,9 @@
 import re
+import os
+import time
 import logging
 import sqlite3
-import os
+
 from telegram.ext import (
     ApplicationBuilder,
     MessageHandler,
@@ -10,20 +12,28 @@ from telegram.ext import (
     filters,
 )
 from telegram import Update
+from telegram.error import RetryAfter
+
+# ================= CLEAN LOGGING =================
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(levelname)s:%(name)s:%(message)s"
+)
+logging.getLogger("httpx").setLevel(logging.WARNING)
+logging.getLogger("telegram").setLevel(logging.WARNING)
+logging.getLogger("telegram.ext").setLevel(logging.WARNING)
+
+logger = logging.getLogger(__name__)
 
 # ================= CONFIG =================
 TOKEN = "7945756761:AAHIRDLLWYaSexuFZTqvJTJEzqPwk9D8_W0"
 
-# Zeabur volume mount path (FINAL)
+# Zeabur volume path
 DATA_DIR = "/app/data"
 DB_NAME = f"{DATA_DIR}/no_exempt.db"
 
 # ================= ENSURE DATA DIR =================
 os.makedirs(DATA_DIR, exist_ok=True)
-
-# ================= LOGGING =================
-logging.basicConfig(level=logging.INFO)
-logger = logging.getLogger(__name__)
 
 # ================= DATABASE =================
 conn = sqlite3.connect(DB_NAME, check_same_thread=False)
@@ -59,6 +69,24 @@ def get_no_exempt_list(group_id):
     )
     return [row[0] for row in cursor.fetchall()]
 
+# ================= ADMIN CACHE (FLOOD FIX) =================
+ADMIN_CACHE = {}
+ADMIN_CACHE_TTL = 60  # seconds
+
+async def get_admin_ids_cached(chat, context):
+    chat_id = chat.id
+    now = time.time()
+
+    if chat_id in ADMIN_CACHE:
+        cached_time, admin_ids = ADMIN_CACHE[chat_id]
+        if now - cached_time < ADMIN_CACHE_TTL:
+            return admin_ids
+
+    admins = await context.bot.get_chat_administrators(chat_id)
+    admin_ids = [a.user.id for a in admins]
+    ADMIN_CACHE[chat_id] = (now, admin_ids)
+    return admin_ids
+
 # ================= LINK FILTER =================
 link_pattern = re.compile(r"(http[s]?://|t\.me/)", re.IGNORECASE)
 
@@ -73,8 +101,10 @@ async def delete_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
     chat_id = update.effective_chat.id
     user = update.effective_user
 
-    admins = await update.effective_chat.get_administrators()
-    admin_ids = [a.user.id for a in admins]
+    try:
+        admin_ids = await get_admin_ids_cached(update.effective_chat, context)
+    except Exception:
+        return
 
     no_exempt_list = get_no_exempt_list(chat_id)
 
@@ -94,8 +124,10 @@ async def delete_links(update: Update, context: ContextTypes.DEFAULT_TYPE):
         try:
             await message.delete()
             await message.reply_text("❌ Links are not allowed!")
-        except Exception as e:
-            logger.warning(e)
+        except RetryAfter:
+            return
+        except Exception:
+            return
 
 # ================= COMMANDS (PRIVATE ONLY) =================
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -177,5 +209,5 @@ app.add_handler(CommandHandler("removenoexempt", remove_no_exempt))
 app.add_handler(CommandHandler("list", list_no_exempt))
 app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, delete_links))
 
-logger.info("Bot started successfully (Zeabur Volume FIXED)")
+logger.info("Bot started successfully (CLEAN FINAL BUILD)")
 app.run_polling()
